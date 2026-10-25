@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+
+{% block body %}
+<div class="max-w-md mx-auto my-6 sm:my-10">
+
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-md p-6 sm:p-8">
+    
+    <div class="flex items-center gap-3 mb-6">
+      <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/20">
+        <i data-lucide="shield-check" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-black text-slate-900 tracking-tight">Sign In to PPL</h1>
+        <p class="text-xs text-slate-600">Access counter verification and financial ledger tools.</p>
+      </div>
+    </div>
+
+    <!-- Quick Demo Accounts (for Evaluator Testing) -->
+    <div class="mb-5 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+      <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
+        One-Click Demo Accounts:
+      </span>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" onclick="fillDemo('owner', 'owner123')"
+                class="btn btn-xs bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 rounded-lg font-semibold text-xs gap-1">
+          <i data-lucide="crown" class="w-3.5 h-3.5 text-amber-500"></i> Demo Owner
+        </button>
+        <button type="button" onclick="fillDemo('cashier', 'cashier123')"
+                class="btn btn-xs bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 rounded-lg font-semibold text-xs gap-1">
+          <i data-lucide="user" class="w-3.5 h-3.5 text-slate-600"></i> Demo Cashier
+        </button>
+      </div>
+    </div>
+
+    <!-- Login Form -->
+    <form method="post" action="{{ url_for('login_page', next=request.args.get('next')) }}" class="space-y-4" autocomplete="on">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Username</label>
+        <div class="relative flex items-center">
+          <input type="text" id="username_input" name="username" required autofocus placeholder="e.g. cashier or owner"
+                 class="input input-bordered w-full rounded-xl pl-9 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+          <i data-lucide="user" class="w-4 h-4 text-slate-600 absolute left-3 pointer-events-none"></i>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Password</label>
+        <div class="relative flex items-center">
+          <input type="password" id="password_input" name="password" required placeholder="••••••••"
+                 class="input input-bordered w-full rounded-xl pl-9 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+          <i data-lucide="lock" class="w-4 h-4 text-slate-600 absolute left-3 pointer-events-none"></i>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full bg-emerald-600 hover:bg-emerald-700 border-none text-white font-bold rounded-xl text-sm py-3 h-auto shadow-sm">
+        <i data-lucide="log-in" class="w-4 h-4"></i> Sign In
+      </button>
+
+      <div class="pt-3 text-center border-t border-slate-100">
+        <p class="text-xs text-slate-600">
+          Don't have an account? 
+          <a href="{{ url_for('register_page') }}" class="font-bold text-emerald-600 hover:text-emerald-700 hover:underline">
+            Create an Account
+          </a>
+        </p>
+      </div>
+    </form>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function fillDemo(user, pass) {
+    document.getElementById('username_input').value = user;
+    document.getElementById('password_input').value = pass;
+  }
+</script>
+{% endblock %}

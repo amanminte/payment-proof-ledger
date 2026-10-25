@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}Live Board{% endblock %}
+
+{% block body %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+        Verification Board
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200/80">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Live Sync
+        </span>
+      </h1>
+      <p class="text-xs text-slate-600">Match customer claims against real Telebirr & CBE bank messages.</p>
+    </div>
+    
+    <a href="{{ url_for('create_sale') }}" class="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-none text-white rounded-xl shadow-xs gap-1.5 text-xs sm:text-sm font-semibold self-start sm:self-auto">
+      <i data-lucide="plus-circle" class="w-4 h-4"></i>
+      Open New Sale
+    </a>
+  </div>
+
+  <!-- Stats Grid (Vuetify/DaisyUI Stat Cards) -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+    
+    <!-- Stat 1: Verified Revenue -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div>
+        <span class="text-xs font-semibold text-slate-600 block mb-0.5 uppercase tracking-wider">Verified Today</span>
+        {% if can_view_totals and today %}
+          <div class="text-2xl font-black text-slate-900 tracking-tight" id="stat_today_total">
+            {{ "%.2f"|format(today.total) }} <span class="text-sm font-bold text-slate-600">ETB</span>
+          </div>
+          <span class="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-0.5" id="stat_today_count">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> {{ today.count }} confirmed sales
+          </span>
+        {% else %}
+          <div class="text-sm font-bold text-slate-500 tracking-tight mt-1" id="stat_today_total">
+            <span class="badge badge-sm bg-slate-100 text-slate-600 border border-slate-200">Owner Restricted</span>
+          </div>
+          <span class="text-[11px] text-slate-400 mt-1 block">
+            Hidden in cashier view (FR-10)
+          </span>
+        {% endif %}
+      </div>
+      <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <i data-lucide="banknote" class="w-6 h-6"></i>
+      </div>
+    </div>
+
+    <!-- Stat 2: Threats Caught -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div>
+        <span class="text-xs font-semibold text-slate-600 block mb-0.5 uppercase tracking-wider">Scams Blocked</span>
+        <div class="text-2xl font-black {{ 'text-rose-600' if flagged else 'text-slate-900' }} tracking-tight" id="stat_flagged">
+          {{ flagged }}
+        </div>
+        <span class="text-xs text-slate-600 mt-0.5 block">
+          Missing, wrong, or replayed
+        </span>
+      </div>
+      <div class="w-12 h-12 rounded-2xl {{ 'bg-rose-50 text-rose-600' if flagged else 'bg-slate-100 text-slate-600' }} flex items-center justify-center">
+        <i data-lucide="shield-alert" class="w-6 h-6"></i>
+      </div>
+    </div>
+
+    <!-- Stat 3: Ledger Security -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div>
+        <span class="text-xs font-semibold text-slate-600 block mb-0.5 uppercase tracking-wider">Ledger Health</span>
+        <div class="text-lg font-bold tracking-tight mt-0.5" id="stat_chain_status">
+          {% if chain.ok %}
+            <span class="text-emerald-700 flex items-center gap-1.5 font-black text-xl">
+              <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i> Intact
+            </span>
+          {% else %}
+            <span class="text-rose-600 flex items-center gap-1.5 font-black text-base animate-pulse">
+              <i data-lucide="alert-octagon" class="w-5 h-5"></i> TAMPERED #{{ chain.broken_at }}
+            </span>
+          {% endif %}
+        </div>
+        <span class="text-[11px] text-slate-600 font-mono mt-1 block">SHA-256 Hash Chain</span>
+      </div>
+      <div class="w-12 h-12 rounded-2xl {{ 'bg-emerald-50 text-emerald-600' if chain.ok else 'bg-rose-50 text-rose-600' }} flex items-center justify-center">
+        <i data-lucide="lock" class="w-6 h-6"></i>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Live Open Sales Section -->
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <h2 class="font-extrabold text-slate-900 text-base">Sales Awaiting Payment Confirmation</h2>
+        <span class="badge badge-sm font-semibold rounded-full" id="open_sales_badge">
+          {{ open_sales|length }} active
+        </span>
+      </div>
+      <span class="text-xs text-slate-600 hidden sm:inline-flex items-center gap-1">
+        <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-500 animate-pulse"></i> Auto-matching phone SMS
+      </span>
+    </div>
+
+    <!-- Sales List Container -->
+    <div id="sales_list_container" class="divide-y divide-slate-100">
+      {% if open_sales %}
+        {% for s in open_sales %}
+          <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-300 hover:bg-slate-50/70"
+               data-sale-id="{{ s.id }}">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 font-bold text-xs">
+                #{{ s.id }}
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1.5">
+                  <span class="text-2xl font-black text-slate-900 tracking-tight">{{ "%.2f"|format(s.amount) }}</span>
+                  <span class="text-sm font-bold text-slate-600">ETB</span>
+                  {% if s.cost %}
+                    <span class="text-xs text-slate-600 ml-1.5">(Cost: {{ "%.2f"|format(s.cost) }} ETB)</span>
+                  {% endif %}
+                </div>
+                <div class="text-xs text-slate-600 flex items-center gap-1.5 mt-0.5">
+                  <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                  <span>Opened {{ s.age }} min ago</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Badges & Dismiss -->
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              {% if s.state == 'alert' %}
+                <div class="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-1.5 status-pulse shadow-xs">
+                  <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-600 shrink-0"></i>
+                  <span>NO PAYMENT &middot; DO NOT RELEASE GOODS</span>
+                </div>
+              {% elif s.state == 'waiting' %}
+                <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold flex items-center gap-1.5">
+                  <i data-lucide="clock" class="w-4 h-4 text-amber-600 shrink-0 animate-spin"></i>
+                  <span>Waiting for SMS (Delayed > 2 min)</span>
+                </div>
+              {% else %}
+                <div class="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                  <i data-lucide="loader-2" class="w-4 h-4 text-slate-600 animate-spin shrink-0"></i>
+                  <span>Pending Payment SMS</span>
+                </div>
+              {% endif %}
+
+              <!-- Cancel / Dismiss Sale Button (Pending only or Owner) -->
+              {% if s.state == 'pending' or is_owner %}
+                <button type="button" onclick="openCancelModal({{ s.id }}, '{{ '%.2f'|format(s.amount) }}')"
+                        title="Cancel this pending sale"
+                        class="btn btn-xs btn-ghost text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5 transition-colors">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  <span class="sr-only">Cancel</span>
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="p-10 text-center text-slate-600">
+          <div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="check-check" class="w-7 h-7"></i>
+          </div>
+          <p class="font-bold text-slate-800 text-base">No sales currently awaiting payment</p>
+          <p class="text-xs text-slate-600 max-w-sm mx-auto mt-1">
+            When a customer wants to pay, tap <strong>Open New Sale</strong> and enter the amount.
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Known active sale IDs in the current DOM
+  let knownSaleIds = new Set([
+    {% for s in open_sales %}{{ s.id }},{% endfor %}
+  ]);
+
+  function showToast(message, type = "success") {
+    const container = document.getElementById("live_toast_container");
+    if (!container) return;
+    
+    const toast = document.createElement("div");
+    toast.className = `alert ${type === 'success' ? 'alert-success bg-emerald-600 text-white' : 'alert-error'} shadow-lg text-sm rounded-xl py-2.5 px-4 flex items-center gap-2 font-semibold transition-all duration-300`;
+    toast.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+    lucide.createIcons();
+    
+    setTimeout(() => {
+      toast.classList.add("opacity-0", "translate-y-2");
+      setTimeout(() => toast.remove(), 400);
+    }, 4500);
+  }
+
+  // Smooth live polling without reloading browser page
+  async function pollLiveStatus() {
+    try {
+      const res = await fetch("{{ url_for('live_status') }}", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Update stat counters (if authorized)
+      if (data.can_view_totals && data.today_total !== null) {
+        const statTotal = document.getElementById("stat_today_total");
+        if (statTotal) statTotal.innerHTML = `${Number(data.today_total).toFixed(2)} <span class="text-sm font-bold text-slate-400">ETB</span>`;
+        
+        const statCount = document.getElementById("stat_today_count");
+        if (statCount) statCount.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> ${data.today_count} confirmed sales`;
+      }
+
+      const statFlagged = document.getElementById("stat_flagged");
+      if (statFlagged) {
+        statFlagged.textContent = data.flagged;
+        statFlagged.className = `text-2xl font-black ${data.flagged ? 'text-rose-600' : 'text-slate-900'} tracking-tight`;
+      }
+
+      // Check if any previously open sale just verified!
+      const currentIds = new Set(data.open_sales.map(s => s.id));
+      for (const id of knownSaleIds) {
+        if (!currentIds.has(id)) {
+          // Sale #id was verified!
+          window.playCashChime();
+          showToast(`Sale #${id} verified! Payment arrived.`);
+        }
+      }
+      knownSaleIds = currentIds;
+
+      // Update sales badge
+      const badge = document.getElementById("open_sales_badge");
+      if (badge) badge.textContent = `${data.open_sales.length} active`;
+
+      // Render sales list
+      const listContainer = document.getElementById("sales_list_container");
+      if (!listContainer) return;
+
+      if (data.open_sales.length === 0) {
+        listContainer.innerHTML = `
+          <div class="p-10 text-center text-slate-400">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+              <i data-lucide="check-check" class="w-7 h-7"></i>
+            </div>
+            <p class="font-bold text-slate-800 text-base">No sales currently awaiting payment</p>
+            <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+              When a customer wants to pay, tap <strong>Open New Sale</strong> and enter the amount.
+            </p>
+          </div>
+        `;
+      } else {
+        listContainer.innerHTML = data.open_sales.map(s => {
+          let badgeHtml = "";
+          if (s.state === 'alert') {
+            badgeHtml = `
+              <div class="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-1.5 status-pulse shadow-xs">
+                <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-600 shrink-0"></i>
+                <span>NO PAYMENT &middot; DO NOT RELEASE GOODS</span>
+              </div>
+            `;
+          } else if (s.state === 'waiting') {
+            badgeHtml = `
+              <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold flex items-center gap-1.5">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-600 shrink-0 animate-spin"></i>
+                <span>Waiting for SMS (Delayed > 2 min)</span>
+              </div>
+            `;
+          } else {
+            badgeHtml = `
+              <div class="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                <i data-lucide="loader-2" class="w-4 h-4 text-slate-400 animate-spin shrink-0"></i>
+                <span>Pending Payment SMS</span>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-300 hover:bg-slate-50/70"
+                 data-sale-id="${s.id}">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 font-bold text-xs">
+                  #${s.id}
+                </div>
+                <div>
+                  <div class="flex items-baseline gap-1.5">
+                    <span class="text-2xl font-black text-slate-900 tracking-tight">${Number(s.amount).toFixed(2)}</span>
+                    <span class="text-sm font-bold text-slate-400">ETB</span>
+                  </div>
+                  <div class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                    <span>Opened ${s.age} min ago</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 self-start sm:self-auto">
+                ${badgeHtml}
+                ${(s.state === 'pending' || isOwner) ? `
+                  <button type="button" onclick="openCancelModal(${s.id}, '${Number(s.amount).toFixed(2)}')"
+                          title="Cancel this pending sale"
+                          class="btn btn-xs btn-ghost text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5 transition-colors">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span class="sr-only">Cancel</span>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      lucide.createIcons();
+    } catch(err) {
+      console.warn("Polling error:", err);
+    }
+  }
+
+  // Poll every 3 seconds
+  setInterval(pollLiveStatus, 3000);
+</script>
+
+<!-- In-Page Confirmation Modal for Cancelling Sale (FR-10 Safe) -->
+<dialog id="cancel_sale_modal" class="modal">
+  <div class="modal-box max-w-sm rounded-2xl p-6 bg-white shadow-2xl border border-slate-100">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h3 class="font-extrabold text-base text-slate-900">Cancel Sale?</h3>
+        <span class="text-xs text-slate-400 font-mono" id="cancel_modal_subtitle">Sale #</span>
+      </div>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-6 leading-relaxed">
+      Are you sure you want to cancel this pending sale for <strong class="text-slate-900" id="cancel_modal_amount"></strong> ETB?
+    </p>
+
+    <form id="cancel_modal_form" method="post" action="">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="flex gap-2">
+        <button type="button" onclick="document.getElementById('cancel_sale_modal').close()"
+                class="btn btn-ghost flex-1 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">
+          Keep Sale
+        </button>
+        <button type="submit"
+                class="btn btn-error flex-1 bg-rose-600 hover:bg-rose-700 border-none text-white rounded-xl text-xs font-bold shadow-xs">
+          Yes, Cancel Sale
+        </button>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop bg-slate-900/30 backdrop-blur-xs">
+    <button>close</button>
+  </form>
+</dialog>
+
+<script>
+  const isOwner = {{ 'true' if is_owner else 'false' }};
+
+  function openCancelModal(saleId, amount) {
+    const modal = document.getElementById("cancel_sale_modal");
+    const form = document.getElementById("cancel_modal_form");
+    const subtitle = document.getElementById("cancel_modal_subtitle");
+    const amt = document.getElementById("cancel_modal_amount");
+    if (!modal || !form) return;
+
+    form.action = `/sales/${saleId}/cancel`;
+    subtitle.textContent = `Sale #${saleId}`;
+    amt.textContent = `${amount}`;
+    modal.showModal();
+    lucide.createIcons();
+  }
+</script>
+{% endblock %}

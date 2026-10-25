@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Payment Inbox &amp; Simulator{% endblock %}
+
+{% block body %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+        Payment Inbox
+        <span class="badge badge-sm font-semibold rounded-full bg-slate-100 text-slate-700">
+          Testing Simulator
+        </span>
+      </h1>
+      <p class="text-xs text-slate-600">Simulate incoming SMS messages from Telebirr and CBE bank phones.</p>
+    </div>
+  </div>
+
+  {% if is_owner and enable_simulator %}
+  <!-- Simulation Card -->
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6">
+    <div class="flex items-center gap-2 mb-4">
+      <div class="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+        <i data-lucide="message-square" class="w-4 h-4"></i>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-sm text-slate-900">Simulate Incoming Payment SMS</h2>
+        <p class="text-xs text-slate-600">Owner Testing Tool: Uses the exact same parsing and matching engine as the live Android webhook.</p>
+      </div>
+    </div>
+
+    <!-- Quick Example Samples for Ethiopian Evaluators -->
+    <div class="mb-3">
+      <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Load Real Message Sample:</span>
+      <div class="flex flex-wrap gap-1.5">
+        <button type="button" onclick="loadSample('telebirr')"
+                class="btn btn-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border-none rounded-lg font-semibold text-[11px]">
+          Telebirr (80.00 ETB)
+        </button>
+        <button type="button" onclick="loadSample('cbe')"
+                class="btn btn-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border-none rounded-lg font-semibold text-[11px]">
+          CBE Mobile (200.00 ETB)
+        </button>
+        <button type="button" onclick="loadSample('amharic')"
+                class="btn btn-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border-none rounded-lg font-semibold text-[11px]">
+          Telebirr Amharic (300 ETB)
+        </button>
+        <button type="button" onclick="loadSample('otp')"
+                class="btn btn-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold text-[11px]">
+          Trap: Banking OTP (BRU-03)
+        </button>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('simulate_sms') }}" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <textarea id="sms_textarea" name="message" rows="3"
+                  placeholder="Paste SMS text here, e.g. 'Dear customer, you have received ETB 200.00 from...'"
+                  class="textarea textarea-bordered w-full text-xs font-mono rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"></textarea>
+      </div>
+
+      <div class="divider text-xs text-slate-600 my-1">OR ENTER FIELDS DIRECTLY</div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 mb-1">Amount (ETB)</label>
+          <input type="text" name="amount" placeholder="e.g. 500" inputmode="decimal"
+                 class="input input-sm input-bordered w-full rounded-lg text-xs font-semibold">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 mb-1">Transaction ID</label>
+          <input type="text" name="txn_id" placeholder="e.g. TB11223344"
+                 class="input input-sm input-bordered w-full rounded-lg text-xs font-mono">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 mb-1">Provider (Optional)</label>
+          <select name="provider" class="select select-sm select-bordered w-full rounded-lg text-xs">
+            <option value="">Auto-Detect</option>
+            <option value="telebirr">Telebirr</option>
+            <option value="cbe">CBE</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-none text-white text-xs font-bold rounded-xl w-full sm:w-auto px-6">
+        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+        Process Payment Message
+      </button>
+    </form>
+  </div>
+  {% elif not enable_simulator %}
+  <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 flex items-center gap-2.5">
+    <i data-lucide="shield" class="w-4 h-4 text-slate-500 shrink-0"></i>
+    <span>Manual SMS simulator is disabled in production mode (ENABLE_SIMULATOR=0). Payments are ingested automatically via authenticated Android webhook.</span>
+  </div>
+  {% else %}
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 flex items-center gap-2.5">
+    <i data-lucide="lock" class="w-4 h-4 text-amber-600 shrink-0"></i>
+    <span>Payment Simulation tool is restricted to the Shop Owner to prevent unauthorized staff payment creation (FR-10).</span>
+  </div>
+  {% endif %}
+
+  <!-- Tables Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    <!-- Payments Ingested -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+          <i data-lucide="arrow-down-left" class="w-4 h-4 text-emerald-600"></i>
+          Ingested Payments Log
+        </h3>
+        <span class="text-[11px] text-slate-600">Last 30 entries</span>
+      </div>
+
+      <div class="overflow-x-auto max-h-80">
+        <table class="table table-sm text-xs">
+          <thead class="bg-slate-50 text-slate-600 font-bold">
+            <tr>
+              <th>Amount</th>
+              <th>Txn ID</th>
+              <th>Matched Sale</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for p in payments %}
+              <tr class="hover:bg-slate-50">
+                <td class="font-bold text-slate-900">{{ "%.2f"|format(p.amount) }} ETB</td>
+                <td class="font-mono text-slate-600 text-[11px]">{{ p.txn_id }}</td>
+                <td>
+                  {% if p.matched_sale_id %}
+                    <span class="badge badge-sm bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                      Sale #{{ p.matched_sale_id }}
+                    </span>
+                  {% else %}
+                    <span class="badge badge-sm bg-amber-50 text-amber-700 border border-amber-200 font-bold">
+                      Unassigned
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3" class="text-center text-slate-600 py-6">No payments received yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Security & Threat Alerts -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
+          Security &amp; Mismatch Log
+        </h3>
+        <span class="text-[11px] text-slate-600">Audit trail</span>
+      </div>
+
+      <div class="overflow-x-auto max-h-80">
+        <table class="table table-sm text-xs">
+          <thead class="bg-slate-50 text-slate-600 font-bold">
+            <tr>
+              <th>Threat Type</th>
+              <th>Sale</th>
+              <th>Time (UTC)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for a in alerts %}
+              <tr class="hover:bg-slate-50">
+                <td>
+                  {% if a.type == 'duplicate_txn' %}
+                    <span class="badge badge-xs bg-rose-100 text-rose-800 border-none font-bold">Duplicate Replay</span>
+                  {% elif a.type == 'wrong_amount' %}
+                    <span class="badge badge-xs bg-amber-100 text-amber-800 border-none font-bold">Wrong Amount</span>
+                  {% elif a.type == 'no_payment' %}
+                    <span class="badge badge-xs bg-rose-50 text-rose-700 border border-rose-200 font-bold">No Payment (10m)</span>
+                  {% else %}
+                    <span class="badge badge-xs bg-slate-100 text-slate-700 border-none font-medium">{{ a.type }}</span>
+                  {% endif %}
+                </td>
+                <td class="font-bold text-slate-700">{{ '#' ~ a.sale_id if a.sale_id else '-' }}</td>
+                <td class="text-slate-600 text-[11px] font-mono">{{ a.created_at[11:19] }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3" class="text-center text-slate-600 py-6">No threat alerts recorded.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const samples = {
+    telebirr: "Dear Merchant \nYou have received ETB 80.00 from Chala Bekele (2519****0001) on 02/10/2026 07:55:30. Your transaction number is TB8899AACC. The service fee is ETB 0.87. Your current balance is ETB 147.15. https://transactioninfo.ethiotelecom.et/receipt/TB8899AACC\nThank you for using telebirr",
+    cbe: "Dear Merchant Store You have received ETB 200.00 from account 1**0003 (Abebe Kebede) to your account 1**0001. Your current balance is ETB450.39. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-cbeMockTxnId200 for feedback: https://forms.gle/mockFeedbackUrl123",
+    amharic: "ውድ ደንበኛ 300.00 ብር ከ 0911000000 ተቀብለዋል:: የግብይት ቁጥር: DA99887766",
+    otp: "Your mobile banking OTP is 849201. You have received ETB 1000.00 from Abebe. Do not share this code."
+  };
+
+  function loadSample(key) {
+    const textarea = document.getElementById("sms_textarea");
+    if (!textarea || !samples[key]) return;
+    textarea.value = samples[key];
+    textarea.focus();
+  }
+</script>
+{% endblock %}

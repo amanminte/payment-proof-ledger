@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}Financial &amp; Ledger Reports{% endblock %}
+
+{% block body %}
+<div class="space-y-6">
+
+  {% if not is_authorized %}
+    <!-- Locked View for Cashier Mode (FR-10) -->
+    <div class="max-w-md mx-auto my-8">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-md p-6 sm:p-8 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-100">
+          <i data-lucide="lock" class="w-7 h-7"></i>
+        </div>
+        
+        <h2 class="text-xl font-black text-slate-900 tracking-tight mb-1">Shift Accounting Locked</h2>
+        <p class="text-xs text-slate-600 mb-6 leading-relaxed">
+          Financial summaries, profit calculations, and ledger audit tools are restricted under <strong>FR-10</strong> permissions.
+          To perform shift reconciliation, request a <strong>10-minute temporary passcode</strong> from the store owner.
+        </p>
+
+        <form method="post" action="{{ url_for('verify_passcode') }}" class="space-y-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          
+          <div class="form-control">
+            <label class="label py-1 text-xs font-semibold text-slate-700 justify-center">Enter 6-Digit Accounting Passcode</label>
+            <input type="text" name="passcode" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="••••••" autocomplete="one-time-code" required autofocus
+                   class="input input-bordered w-full text-center tracking-[0.5em] text-2xl font-mono font-bold rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
+          </div>
+
+          <button type="submit" class="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-none text-white w-full rounded-xl text-sm font-semibold shadow-xs gap-2">
+            <i data-lucide="key-round" class="w-4 h-4"></i> Unlock 10-Minute Accounting Session
+          </button>
+        </form>
+
+        <div class="mt-6 p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 text-left flex items-start gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+          <span>
+            <strong>Dynamic TTL Security:</strong> Passcodes are generated on-demand by the shop owner and automatically self-destruct after 10 minutes to protect store profits from shoulder-surfing.
+          </span>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-slate-100">
+          <a href="{{ url_for('dashboard') }}" class="text-xs font-semibold text-slate-600 hover:text-slate-900">
+            &larr; Return to Cashier Sales Board
+          </a>
+        </div>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Unlocked View: Either Owner or Authorized Cashier (FR-10) -->
+
+    <!-- Cashier Temporary Session Active Banner -->
+    {% if cashier_accounting_active %}
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <i data-lucide="timer" class="w-5 h-5 status-pulse"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-sm text-slate-900">Temporary Cashier Accounting Session</span>
+              <span class="badge badge-xs bg-amber-200 text-amber-900 font-bold border-none">10-MIN PASS</span>
+            </div>
+            <p class="text-xs text-slate-600">
+              Authorized by Store Owner. Session auto-locks in <span id="cashier_timer_display" class="font-mono font-bold text-amber-800">--:--</span>.
+            </p>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('lock_cashier_accounting') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-xs sm:btn-sm btn-ghost bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs gap-1.5 shadow-xs">
+            <i data-lucide="lock" class="w-3.5 h-3.5 text-rose-500"></i> End Session Now
+          </button>
+        </form>
+      </div>
+    {% endif %}
+
+    <!-- Owner Passcode Generator Control Panel -->
+    {% if is_owner %}
+      <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 sm:p-6 text-white shadow-md">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-300">FR-10 Access Delegation</span>
+            </div>
+            <h2 class="text-lg font-black tracking-tight flex items-center gap-2">
+              <i data-lucide="key-round" class="w-5 h-5 text-emerald-400"></i>
+              Cashier Shift Accounting Passcode
+            </h2>
+            <p class="text-xs text-slate-300 max-w-xl mt-1 leading-relaxed">
+              Need your cashier to reconcile shift totals? Generate an ephemeral 10-minute passcode instead of sharing your permanent owner credentials.
+            </p>
+          </div>
+
+          <!-- Code Display / Controls -->
+          {% if active_passcode %}
+            <div class="bg-slate-800/90 border border-slate-700 p-3 sm:p-4 rounded-xl flex flex-col items-center sm:items-end gap-2 shrink-0">
+              <div class="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
+                <span>Active Code &bull; Expires in <span id="owner_passcode_timer" class="font-mono font-bold text-emerald-300">--:--</span></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="active_passcode_text" class="text-2xl sm:text-3xl font-black font-mono tracking-[0.3em] text-emerald-400 bg-slate-950 px-3 py-1 rounded-lg border border-emerald-500/30 select-all">
+                  {{ active_passcode.token }}
+                </span>
+                <button type="button" onclick="copyPasscode()" class="btn btn-xs btn-ghost text-slate-300 hover:text-white" title="Copy code">
+                  <i data-lucide="copy" class="w-4 h-4"></i>
+                </button>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <form method="post" action="{{ url_for('generate_passcode') }}" class="inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-xs bg-slate-700 hover:bg-slate-600 border-none text-slate-200 rounded-lg text-[11px] font-semibold">
+                    Regenerate
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('revoke_passcode') }}" class="inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-xs bg-rose-600/80 hover:bg-rose-600 border-none text-white rounded-lg text-[11px] font-semibold">
+                    Revoke
+                  </button>
+                </form>
+              </div>
+            </div>
+          {% else %}
+            <form method="post" action="{{ url_for('generate_passcode') }}" class="shrink-0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-primary bg-emerald-500 hover:bg-emerald-600 border-none text-slate-950 font-black rounded-xl text-xs sm:text-sm px-4 gap-2 shadow-lg shadow-emerald-500/20">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                Generate 10-Min Passcode
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Report Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          Business Reports &amp; Ledger
+          {% if is_owner %}
+            <span class="badge badge-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Owner Mode
+            </span>
+          {% elif cashier_accounting_active %}
+            <span class="badge badge-sm font-bold bg-amber-100 text-amber-800 border border-amber-200">
+              Cashier Accounting Mode
+            </span>
+          {% endif %}
+        </h1>
+        <p class="text-xs text-slate-600">Daily, weekly, and monthly totals with cryptographic SHA-256 chain verification.</p>
+      </div>
+
+      {% if is_owner %}
+        <form method="post" action="{{ url_for('toggle_owner_mode') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-xs sm:btn-sm btn-ghost bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs gap-1">
+            <i data-lucide="eye-off" class="w-3.5 h-3.5 text-slate-500"></i>
+            Preview Cashier View
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Revenue & Profit Periods Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+      {% for key, label, icon_name in [('today','Today','calendar-day'),('week','Last 7 Days','calendar-range'),('month','This Month','calendar')] %}
+        {% set p = data.periods[key] %}
+        <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">{{ label }}</span>
+              <span class="badge badge-xs bg-slate-100 text-slate-600 font-semibold">{{ p.count }} sales</span>
+            </div>
+            <div class="text-2xl font-black text-slate-900 tracking-tight mt-1">
+              {{ "%.2f"|format(p.total) }} <span class="text-sm font-bold text-slate-600">ETB</span>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-100 text-xs">
+            {% if p.with_cost == 0 %}
+              <span class="text-slate-600 font-medium">Profit: no item costs entered</span>
+            {% else %}
+              <div class="flex items-center justify-between text-emerald-700 font-bold">
+                <span>Estimated Profit:</span>
+                <span>+{{ "%.2f"|format(p.profit) }} ETB</span>
+              </div>
+              <span class="text-[10px] text-slate-600 block mt-0.5">Calculated from {{ p.with_cost }} sales with recorded cost</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Daily Breakdown Table -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-600"></i>
+          Daily Verified Sales Breakdown
+        </h3>
+        <span class="text-[11px] text-slate-600">Past 7 days</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm text-xs">
+          <thead class="bg-slate-50 text-slate-600 font-bold">
+            <tr>
+              <th>Date</th>
+              <th>Verified Sales Count</th>
+              <th class="text-right">Total Revenue (ETB)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y border-slate-100">
+            {% for d, v in data.daily %}
+              <tr class="hover:bg-slate-50">
+                <td class="font-semibold text-slate-700 font-mono">{{ d }}</td>
+                <td>{{ v.count }}</td>
+                <td class="text-right font-bold text-slate-900">{{ "%.2f"|format(v.total) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cryptographic Ledger Tamper-Evident Health Card -->
+    <div class="bg-white rounded-2xl border {{ 'border-emerald-200 bg-gradient-to-br from-white to-emerald-50/20' if chain.ok else 'border-rose-200 bg-rose-50/20' }} shadow-xs p-5 sm:p-6">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl {{ 'bg-emerald-100 text-emerald-700' if chain.ok else 'bg-rose-100 text-rose-700' }} flex items-center justify-center shrink-0">
+            <i data-lucide="{{ 'shield-check' if chain.ok else 'alert-triangle' }}" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm text-slate-900">Cryptographic Hash Chain Integrity</h3>
+            <p class="text-xs text-slate-600">Mathematically links every verified sale to guarantee tamper evidence.</p>
+          </div>
+        </div>
+
+        <div>
+          {% if chain.ok %}
+            <span class="badge badge-sm sm:badge-md bg-emerald-100 text-emerald-800 border-none font-extrabold gap-1">
+              <i data-lucide="check" class="w-3.5 h-3.5"></i> INTACT ({{ chain.entries }} entries)
+            </span>
+          {% else %}
+            <span class="badge badge-sm sm:badge-md bg-rose-100 text-rose-800 border-none font-extrabold gap-1 status-pulse">
+              <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> TAMPERED AT #{{ chain.broken_at }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="bg-slate-900 text-slate-200 rounded-xl p-3.5 mt-3 text-xs font-mono">
+        <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+          <span>Latest Chain SHA-256 Digest (Store owner offline verification):</span>
+          <button type="button" onclick="copyHash()" class="text-emerald-400 hover:text-emerald-300 font-sans text-[11px] font-semibold">
+            Copy Hash
+          </button>
+        </div>
+        <div id="hash_display" class="break-all font-semibold select-all text-emerald-300">
+          {{ chain.latest_hash or '0000000000000000000000000000000000000000000000000000000000000000' }}
+        </div>
+      </div>
+    </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function copyHash() {
+    const text = document.getElementById("hash_display")?.innerText;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Latest ledger hash copied to clipboard!");
+    });
+  }
+
+  function copyPasscode() {
+    const text = document.getElementById("active_passcode_text")?.innerText?.trim();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Passcode " + text + " copied to clipboard!");
+    });
+  }
+
+  // Cashier Accounting Session Countdown
+  {% if cashier_accounting_active and cashier_accounting_remaining > 0 %}
+  (function() {
+    let remaining = {{ cashier_accounting_remaining }};
+    const el = document.getElementById("cashier_timer_display");
+    if (!el) return;
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2, '0') + ":" + String(sec).padStart(2, '0');
+    }
+
+    el.innerText = formatTime(remaining);
+    const interval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(interval);
+        el.innerText = "00:00 (Expired)";
+        setTimeout(() => { window.location.reload(); }, 1500);
+      } else {
+        el.innerText = formatTime(remaining);
+      }
+    }, 1000);
+  })();
+  {% endif %}
+
+  // Owner Passcode Active Countdown
+  {% if is_owner and active_passcode and active_passcode.remaining_seconds > 0 %}
+  (function() {
+    let remaining = {{ active_passcode.remaining_seconds }};
+    const el = document.getElementById("owner_passcode_timer");
+    if (!el) return;
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2, '0') + ":" + String(sec).padStart(2, '0');
+    }
+
+    el.innerText = formatTime(remaining);
+    const interval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(interval);
+        el.innerText = "Expired";
+      } else {
+        el.innerText = formatTime(remaining);
+      }
+    }, 1000);
+  })();
+  {% endif %}
+</script>
+{% endblock %}

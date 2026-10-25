@@ -1,0 +1,5 @@
+body { background: #f7f7f9; }
+.status-pending  { color: #6c757d; }
+.status-waiting  { color: #b58900; }
+.status-alert    { color: #c0392b; font-weight: 600; }
+.status-verified { color: #1e8449; }

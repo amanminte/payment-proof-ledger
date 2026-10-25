@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Initial Owner Setup' if is_initial_setup else 'Add Cashier Account' }}{% endblock %}
+
+{% block body %}
+<div class="max-w-md mx-auto my-6 sm:my-10">
+
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-md p-6 sm:p-8">
+    
+    <div class="flex items-center gap-3 mb-6">
+      <div class="w-11 h-11 rounded-2xl {{ 'bg-amber-50 text-amber-600' if is_initial_setup else 'bg-emerald-50 text-emerald-600' }} flex items-center justify-center shrink-0">
+        <i data-lucide="{{ 'crown' if is_initial_setup else 'user-plus' }}" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-black text-slate-900 tracking-tight">
+          {{ 'Initial Owner Setup' if is_initial_setup else 'Create Cashier Account' }}
+        </h1>
+        <p class="text-xs text-slate-600">
+          {% if is_initial_setup %}
+            Initialize the primary store owner account with administrative access.
+          {% else %}
+            Shop Owner Action: Register a counter cashier account (FR-10).
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <!-- Registration Form -->
+    <form method="post" action="{{ url_for('register_page') }}" class="space-y-4" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Username</label>
+        <div class="relative flex items-center">
+          <input type="text" name="username" required autofocus placeholder="e.g. {{ 'store_owner' if is_initial_setup else 'counter_cashier' }}"
+                 class="input input-bordered w-full rounded-xl pl-9 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+          <i data-lucide="user" class="w-4 h-4 text-slate-600 absolute left-3 pointer-events-none"></i>
+        </div>
+        <span class="text-[11px] text-slate-600 mt-1 block">3–30 letters, numbers, or underscores</span>
+      </div>
+
+      <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center gap-2">
+        <i data-lucide="{{ 'crown' if is_initial_setup else 'shield-check' }}" class="w-4 h-4 {{ 'text-amber-500' if is_initial_setup else 'text-emerald-600' }} shrink-0"></i>
+        <span class="text-slate-700">
+          Account Role: <strong class="font-bold text-slate-900">{{ 'Shop Owner (Administrative)' if is_initial_setup else 'Cashier (Sales Board Only)' }}</strong>
+        </span>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Password</label>
+        <div class="relative flex items-center">
+          <input type="password" name="password" required placeholder="Minimum 6 characters"
+                 class="input input-bordered w-full rounded-xl pl-9 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+          <i data-lucide="lock" class="w-4 h-4 text-slate-600 absolute left-3 pointer-events-none"></i>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Confirm Password</label>
+        <div class="relative flex items-center">
+          <input type="password" name="confirm_password" required placeholder="Repeat password"
+                 class="input input-bordered w-full rounded-xl pl-9 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+          <i data-lucide="shield" class="w-4 h-4 text-slate-600 absolute left-3 pointer-events-none"></i>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full bg-emerald-600 hover:bg-emerald-700 border-none text-white font-bold rounded-xl text-sm py-3 h-auto shadow-sm">
+        <i data-lucide="{{ 'crown' if is_initial_setup else 'user-check' }}" class="w-4 h-4"></i>
+        {{ 'Initialize Owner Account' if is_initial_setup else 'Create Cashier Account' }}
+      </button>
+
+      <div class="pt-3 text-center border-t border-slate-100">
+        <a href="{{ url_for('dashboard' if current_user else 'login_page') }}" class="text-xs font-semibold text-slate-600 hover:text-slate-900">
+          &larr; Return to {{ 'Dashboard' if current_user else 'Sign In' }}
+        </a>
+      </div>
+    </form>
+
+  </div>
+
+</div>
+{% endblock %}

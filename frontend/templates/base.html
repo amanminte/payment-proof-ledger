@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+  <title>PPL - {% block title %}{% endblock %}</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS & DaisyUI -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            }
+          }
+        }
+      }
+    }
+
+    // Cash register audio chime using Web Audio API
+    window.playCashChime = function() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+        
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, now);       // D5
+        osc.frequency.setValueAtTime(880.00, now + 0.08); // A5
+        osc.frequency.setValueAtTime(1174.66, now + 0.16); // D6
+        
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.55);
+      } catch(e) {
+        console.warn("Audio chime not available:", e);
+      }
+    };
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col justify-between">
+
+<div>
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div class="max-w-4xl mx-auto px-4 py-2.5 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2.5 group">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+          <i data-lucide="shield-check" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="font-extrabold text-base tracking-tight leading-none text-slate-900 flex items-center gap-1.5">
+            PPL <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">ET</span>
+          </div>
+          <span class="text-[11px] text-slate-600 font-medium leading-none">Payment Proof & Ledger</span>
+        </div>
+      </a>
+
+      <!-- Navigation & User Auth -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        {% if current_user %}
+          <nav class="flex items-center text-xs sm:text-sm font-medium">
+            <a href="{{ url_for('dashboard') }}" class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors">Board</a>
+            <a href="{{ url_for('create_sale') }}" class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors">New Sale</a>
+            <a href="{{ url_for('inbox') }}" class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors">Inbox</a>
+            <a href="{{ url_for('reports_page') }}" class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors">Reports</a>
+          </nav>
+
+          <div class="h-4 w-px bg-slate-200 mx-1"></div>
+
+          <!-- User Menu & Role -->
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 px-2.5 rounded-lg cursor-pointer border border-slate-200/80 {{ 'bg-emerald-50 text-emerald-800 border-emerald-200' if is_owner else 'bg-slate-100 text-slate-700' }}">
+              {% if is_owner %}
+                <i data-lucide="crown" class="w-3.5 h-3.5 text-amber-500"></i>
+              {% else %}
+                <i data-lucide="user" class="w-3.5 h-3.5 text-slate-500"></i>
+              {% endif %}
+              <span class="font-bold text-xs">@{{ current_user.username }}</span>
+            </label>
+            <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-xl bg-white border border-slate-100 rounded-2xl w-52 mt-1 space-y-1">
+              <li class="menu-title text-[11px] text-slate-400 font-bold uppercase px-3 py-1">
+                Role: <span class="text-slate-800">{{ current_user.role|capitalize }}</span>
+              </li>
+              {% if current_user.role == 'owner' %}
+                <li>
+                  <form method="post" action="{{ url_for('toggle_owner_mode') }}" class="p-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="w-full text-left text-xs py-2 px-3 flex items-center gap-2 font-medium rounded-xl hover:bg-slate-50">
+                      <i data-lucide="{{ 'eye-off' if is_owner else 'eye' }}" class="w-3.5 h-3.5 text-slate-500"></i>
+                      <span>{{ 'Switch to Cashier View' if is_owner else 'Switch to Owner View' }}</span>
+                    </button>
+                  </form>
+                </li>
+                <li>
+                  <a href="{{ url_for('register_page') }}" class="w-full text-left text-xs py-2 px-3 flex items-center gap-2 font-medium rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-plus" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <span>Add Cashier Account</span>
+                  </a>
+                </li>
+              {% endif %}
+              <li class="border-t border-slate-100 pt-1">
+                <form method="post" action="{{ url_for('logout') }}" class="p-0">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="w-full text-left text-xs py-2 px-3 text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold rounded-xl">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sign Out
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </div>
+        {% else %}
+          <div class="flex items-center gap-2">
+            <a href="{{ url_for('login_page') }}" class="btn btn-xs sm:btn-sm btn-primary bg-emerald-600 hover:bg-emerald-700 border-none text-white font-bold text-xs rounded-lg shadow-xs">
+              Sign In
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Flash Messages -->
+  <main class="max-w-4xl mx-auto px-4 py-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-5 space-y-2">
+          {% for cat, msg in messages %}
+            {% set alert_type = 'alert-success' if cat == 'success' else 'alert-error' if cat in ['danger', 'error'] else 'alert-warning' if cat == 'warning' else 'alert-info' %}
+            {% set icon_name = 'check-circle' if cat == 'success' else 'alert-circle' if cat in ['danger', 'error'] else 'alert-triangle' if cat == 'warning' else 'info' %}
+            <div class="alert {{ alert_type }} text-sm py-2.5 px-4 rounded-xl shadow-xs border border-black/5 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="{{ icon_name }}" class="w-4 h-4 shrink-0"></i>
+                <span class="font-medium">{{ msg }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Page Content -->
+    {% block body %}{% endblock %}
+  </main>
+</div>
+
+<!-- Floating Live Toast Notifications -->
+<div id="live_toast_container" class="toast toast-top toast-center z-50 pointer-events-none"></div>
+
+<!-- Footer -->
+<footer class="max-w-4xl mx-auto px-4 py-4 text-center text-xs text-slate-600">
+  <div class="flex items-center justify-center gap-2">
+    <span>Payment Proof & Sales Ledger &middot; INSA Cybersecurity Project</span>
+    <span>&bull;</span>
+    <span class="inline-flex items-center gap-1 text-emerald-600 font-medium">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Live Engine
+    </span>
+  </div>
+</footer>
+
+<script>
+  lucide.createIcons();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
